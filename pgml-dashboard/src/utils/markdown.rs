@@ -491,7 +491,7 @@ pub fn options() -> ComrakOptions {
 }
 
 /// Iterate through the document tree and call function F on all nodes.
-fn iter_nodes<'a, F>(node: &'a AstNode<'a>, f: &mut F) -> anyhow::Result<()>
+pub fn iter_nodes<'a, F>(node: &'a AstNode<'a>, f: &mut F) -> anyhow::Result<()>
 where
     F: FnMut(&'a AstNode<'a>) -> anyhow::Result<bool>,
 {
@@ -513,18 +513,22 @@ where
 /// * `root` - The root node of the document tree.
 ///
 pub fn get_title<'a>(root: &'a AstNode<'a>) -> anyhow::Result<String> {
-    let mut title = String::new();
+    let mut title = None;
 
     iter_nodes(root, &mut |node| {
+        if title.is_some() {
+            return Ok(false);
+        }
+
         match &node.data.borrow().value {
             &NodeValue::Heading(ref header) => {
                 if header.level == 1 {
-                    let sibling = node
+                    let content = node
                         .first_child()
                         .ok_or(anyhow::anyhow!("markdown heading has no child"))?;
-                    match &sibling.data.borrow().value {
+                    match &content.data.borrow().value {
                         &NodeValue::Text(ref text) => {
-                            title = text.to_owned();
+                            title = Some(text.to_owned());
                             return Ok(false);
                         }
                         _ => (),
@@ -537,6 +541,10 @@ pub fn get_title<'a>(root: &'a AstNode<'a>) -> anyhow::Result<String> {
         Ok(true)
     })?;
 
+    let title = match title {
+        Some(title) => title,
+        None => String::new(),
+    };
     Ok(title)
 }
 
