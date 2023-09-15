@@ -26,6 +26,45 @@ async fn search(query: &str, index: &State<markdown::SearchIndex>) -> ResponseOk
 
 #[get("/docs/<path..>", rank = 10)]
 async fn doc_handler<'a>(path: PathBuf, cluster: &Cluster) -> Result<ResponseOk, Status> {
+    // Get the document content
+    let summary = Path::new(&config::docs_dir())
+        .join("test.md");
+
+    // Read to string
+    let contents = match tokio::fs::read_to_string(&summary).await {
+        Ok(contents) => contents,
+        Err(_) => return Err(Status::NotFound),
+    };
+
+    // let mut urls = Vec::new();
+    // let mut titles = Vec::new();
+    // let links = Vec::new();
+    {
+        let arena = Arena::new();
+        let root = parse_document(&arena, &contents, &markdown::options());
+        let nav_list = root.last_child().unwrap();
+
+        let links = markdown::get_nav_links(&nav_list);
+        info!("{:?}", links);
+    //
+    //     markdown::iter_nodes(root, &mut |node| {
+    //         match &node.data.borrow().value {
+    //             comrak::nodes::NodeValue::Link(link) => {
+    //                 urls.push(link.url.to_string());
+    //             }
+    //             comrak::nodes::NodeValue::Text(text) => {
+    //                 titles.push(text.to_string());
+    //             }
+    //             _ => {}
+    //         }
+    //
+    //         Ok(true)
+    //     }).unwrap();
+    }
+    //
+    // info!("{:?}", urls);
+    // info!("{:?}", titles);
+
     let guides = vec![
         NavLink::new("Setup").children(vec![
             NavLink::new("Installation").children(vec![

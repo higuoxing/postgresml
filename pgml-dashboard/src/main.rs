@@ -100,7 +100,10 @@ async fn main() {
     // it's important to hang on to sentry so it isn't dropped and stops reporting
     let _sentry = configure_reporting().await;
 
+    // docs::Index::new().unwrap();
+
     markdown::SearchIndex::build().await.unwrap();
+
 
     pgml_dashboard::migrate(&guards::Cluster::default().pool())
         .await

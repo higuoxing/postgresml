@@ -506,6 +506,80 @@ where
     Ok(())
 }
 
+// Node {
+//   data: RefCell {
+//     value: Ast {
+//       value: Item(NodeList {
+//         list_type: Bullet, marker_offset: 0, padding: 2, start: 1, delimiter: Period, bullet_char: 42, tight: false
+//       }),
+//       start_line: 60,
+//       content: "",
+//       open: false, last_line_blank: false, table_visited: false
+//     }
+//   },
+//   children: [
+//     Node { data: RefCell { value: Ast { value: Paragraph, start_line: 60, content: "[Monitoring](monitoring.md)\n", open: false, last_line_blank: false, table_visited: false } },
+//      children: [
+//        Node { data: RefCell { value: Ast { value: Link(NodeLink { url: "monitoring.md", title: "" }), start_line: 0, content: "", open: false, last_line_blank: false, table_visited: false } },
+//        children: [
+//         Node { data: RefCell { value: Ast { value: Text("Monitoring"), start_line: 0, content: "", open: false, last_line_blank: false, table_visited: false } }, children: [] }
+//        ] }
+//      ] }
+// ] }
+
+pub fn get_nav_links<'a>(node: &'a AstNode<'a>) -> anyhow::Result<Vec<crate::docs::NavLink>> {
+    let mut links = Vec::new();
+
+    match node.first_child().unwrap().data.borrow().value {
+        NodeValue::List(ref list) => {
+            info!("list: {:?}", list);
+            for child in list.children() {
+                info!("got child")
+            }
+        }
+    }
+    // let item = list.first_child().ok_or(anyhow::anyhow!("list has no child"))?;
+    // // info!("node: {:?}  children: {}", node.data.borrow().value, node.children().count());
+    // for child in node.children() {
+    //
+    //     match node.data.borrow().value {
+    //         &NodeValue::List(ref list) => {
+    //             info!("list: {:?}", list);
+    //         }
+    //         &NodeValue::Item(ref item) => {
+    //             info!("item: {:?}", item);
+    //         }
+    //         _ => (),
+    //     }
+    //     // info!("{:?}", child);
+    //     // let links = get_nav_links(child);
+    // }
+
+    // iter_nodes(root, &mut |node| {
+    //     match &node.data.borrow().value {
+    //         &NodeValue::Paragraph(ref paragraph) => {
+    //             let child = node
+    //                 .first_child()
+    //                 .ok_or(anyhow::anyhow!("paragraph has no child"))?;
+    //             match &sibling.data.borrow().value {
+    //                 &NodeValue::Text(ref text) => {
+    //                     links.push(crate::docs::NavLink::new(text, header_counter - 1));
+    //                     return Ok(false);
+    //                 }
+    //                 _ => (),
+    //             };
+    //         }
+    //         _ => (),
+    //     };
+    //
+    //     Ok(true)
+    // })?;
+
+    Ok(links)
+}
+
+
+
 /// Get the title of the article.
 ///
 /// # Arguments
