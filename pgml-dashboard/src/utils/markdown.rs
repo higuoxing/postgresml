@@ -527,17 +527,45 @@ where
 //      ] }
 // ] }
 
-pub fn get_nav_links<'a>(node: &'a AstNode<'a>) -> anyhow::Result<Vec<crate::docs::NavLink>> {
+pub fn get_sub_links(list: &markdown::mdast::List) -> anyhow::Result<Vec<crate::docs::NavLink>> {
+    println!("getting: {:?}", list);
+    let children = list.children().unwrap();
+    for list_item in children.iter() {
+        match list_item
+    }
     let mut links = Vec::new();
+    Ok(links)
+}
 
-    match node.first_child().unwrap().data.borrow().value {
-        NodeValue::List(ref list) => {
-            info!("list: {:?}", list);
-            for child in list.children() {
-                info!("got child")
+pub fn get_nav_links(node: &markdown::mdast::Node) -> anyhow::Result<Vec<crate::docs::NavLink>> {
+    let children = node.children().unwrap();
+    for node in children.iter() {
+        match node {
+            // markdown::mdast::Node::Item(item) => {
+            //     println!("item: {:?}", item);
+            // }
+            markdown::mdast::Node::List(list) => {
+                let sub_links = get_sub_links(list);
+                println!("sub_links: {:?}", sub_links)
             }
+            node => {
+                println!("node: {:?}", node);
+            },
         }
     }
+    // let title = &children[0];
+    // let list = mdast.children
+    // println!("{:?}", title);
+
+    let mut links = Vec::new();
+    // match node.first_child().unwrap().data.borrow().value {
+    //     NodeValue::List(ref list) => {
+    //         info!("list: {:?}", list);
+    //         // for child in list.children() {
+    //         //     info!("got child")
+    //         // }
+    //     }
+    // }
     // let item = list.first_child().ok_or(anyhow::anyhow!("list has no child"))?;
     // // info!("node: {:?}  children: {}", node.data.borrow().value, node.children().count());
     // for child in node.children() {

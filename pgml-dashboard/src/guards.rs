@@ -14,7 +14,7 @@ use crate::Context;
 pub fn default_database_url() -> String {
     match var("DATABASE_URL") {
         Ok(val) => val,
-        Err(_) => "postgres:///pgml".to_string(),
+        Err(_) => "postgres://localhost:28814/pgml".to_string(),
     }
 }
 

@@ -40,12 +40,17 @@ async fn doc_handler<'a>(path: PathBuf, cluster: &Cluster) -> Result<ResponseOk,
     // let mut titles = Vec::new();
     // let links = Vec::new();
     {
-        let arena = Arena::new();
-        let root = parse_document(&arena, &contents, &markdown::options());
-        let nav_list = root.last_child().unwrap();
+        use ::markdown::{to_mdast, ParseOptions};
 
-        let links = markdown::get_nav_links(&nav_list);
-        info!("{:?}", links);
+        let root = to_mdast(&contents, &ParseOptions::default()).unwrap();
+        crate::utils::markdown::get_nav_links(&root);
+
+        // let arena = Arena::new();
+        // let root = parse_document(&arena, &contents, &markdown::options());
+        // let nav_list = root.last_child().unwrap();
+        //
+        // let links = markdown::get_nav_links(&nav_list);
+        // info!("{:?}", links);
     //
     //     markdown::iter_nodes(root, &mut |node| {
     //         match &node.data.borrow().value {
