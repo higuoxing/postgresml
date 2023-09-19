@@ -2222,6 +2222,7 @@ dependencies = [
  "tantivy",
  "time 0.3.23",
  "tokio",
+ "url",
  "yaml-rust",
  "zoomies",
 ]

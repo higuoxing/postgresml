@@ -20,10 +20,11 @@ use tantivy::query::{QueryParser, RegexQuery};
 use tantivy::schema::*;
 use tantivy::tokenizer::{LowerCaser, NgramTokenizer, TextAnalyzer};
 use tantivy::{Index, IndexReader, SnippetGenerator};
+use url::Url;
 
+use crate::templates::docs::NavLink;
 use std::fmt;
 use std::sync::atomic::AtomicUsize;
-use crate::templates::docs::NavLink;
 
 pub struct MarkdownHeadings {
     header_counter: AtomicUsize,
@@ -511,7 +512,7 @@ where
 
 pub fn iter_mut_all<F>(node: &mut markdown::mdast::Node, f: &mut F) -> Result<()>
 where
-    F: FnMut(&mut markdown::mdast::Node) -> Result<()>
+    F: FnMut(&mut markdown::mdast::Node) -> Result<()>,
 {
     let _ = f(node);
     match node.children_mut() {
@@ -520,19 +521,44 @@ where
                 let _ = iter_mut_all(child, f);
             }
         }
-        _ => ()
+        _ => (),
     }
 
     Ok(())
 }
 
-pub fn nest_links(node: &mut markdown::mdast::Node, path: &PathBuf) {
+pub fn nest_relative_links(node: &mut markdown::mdast::Node, path: &PathBuf) {
     let _ = iter_mut_all(node, &mut |node| {
         match node {
             markdown::mdast::Node::Link(ref mut link) => {
-                link.url = format!("{}{}", path.join(link.url);
-            },
-            _ => ()
+                info!("handling link: {:?}", link);
+                match Url::parse(&link.url) {
+                    Ok(url) => {
+                        if !url.has_host() {
+                            info!("relative: {:?}", link);
+                            let mut url_path = url.path().to_string();
+                            let url_path_path = Path::new(&url_path);
+                            match url_path_path.extension() {
+                                Some(ext) => {
+                                    if ext.to_str() == Some(".md") {
+                                        info!("md: {:?}", link);
+                                        let base = url_path_path.with_extension("");
+                                        url_path = base.into_os_string().into_string().unwrap();
+                                    }
+                                }
+                                _ => {
+                                    warn!("not markdown path: {:?}", path)
+                                }
+                            }
+                            link.url = path.join(url_path).into_os_string().into_string().unwrap();
+                        }
+                    }
+                    Err(e) => {
+                        warn!("could not parse url in markdown: {}", e)
+                    }
+                }
+            }
+            _ => (),
         };
 
         Ok(())
@@ -553,17 +579,22 @@ pub fn get_sub_links(list: &markdown::mdast::List) -> Result<Vec<NavLink>> {
                                         for node in link.children.iter() {
                                             match node {
                                                 markdown::mdast::Node::Text(text) => {
-                                                    let url = Path::new(&link.url).with_extension("");
-                                                    let url = Path::new("/docs/guides").join(url).into_os_string().into_string().unwrap();
+                                                    let url =
+                                                        Path::new(&link.url).with_extension("");
+                                                    let url = Path::new("/docs/guides")
+                                                        .join(url)
+                                                        .into_os_string()
+                                                        .into_string()
+                                                        .unwrap();
                                                     let parent = NavLink::new(text.value.as_str())
                                                         .href(&url);
                                                     links.push(parent)
                                                 }
-                                                _ => error!("unhandled link child: {:?}", node)
+                                                _ => error!("unhandled link child: {:?}", node),
                                             }
                                         }
                                     }
-                                    _ => error!("unhandled paragraph child: {:?}", node)
+                                    _ => error!("unhandled paragraph child: {:?}", node),
                                 }
                             }
                         }
@@ -572,11 +603,11 @@ pub fn get_sub_links(list: &markdown::mdast::List) -> Result<Vec<NavLink>> {
                             link.children = get_sub_links(list).unwrap();
                             links.push(link);
                         }
-                        _ => error!("unhandled list_item child: {:?}", node)
+                        _ => error!("unhandled list_item child: {:?}", node),
                     }
                 }
             }
-            _ => error!("unhandled list child: {:?}", node)
+            _ => error!("unhandled list child: {:?}", node),
         }
     }
     Ok(links)
@@ -588,12 +619,11 @@ pub fn parse_summary_into_nav_links(root: &markdown::mdast::Node) -> Result<Vec<
             markdown::mdast::Node::List(list) => {
                 return get_sub_links(list);
             }
-            _ => { /* irrelevant */ },
+            _ => { /* irrelevant */ }
         }
     }
     return Ok(vec![]);
 }
-
 
 /// Get the title of the article.
 ///

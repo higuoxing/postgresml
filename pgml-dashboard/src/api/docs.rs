@@ -24,14 +24,34 @@ async fn search(query: &str, index: &State<markdown::SearchIndex>) -> ResponseOk
     )
 }
 
-#[get("/docs/<path..>", rank = 10)]
+use rocket::fs::NamedFile;
+
+#[get("/docs/guides/.gitbook/assets/<path>", rank = 10)]
+pub async fn gitbook_assets(path: PathBuf) -> Option<NamedFile> {
+    let path = PathBuf::from(&config::docs_dir())
+        .join("docs/guides/.gitbook/assets/")
+        .join(path);
+
+    NamedFile::open(path).await.ok()
+}
+
+#[get("/docs/<path..>", rank = 5)]
 async fn doc_handler(path: PathBuf, cluster: &Cluster) -> Result<ResponseOk, Status> {
-    let root = Path::new(&config::docs_dir()).join("/docs/guides/");
-    let index_path = root.join("SUMMARY.md");
-    let contents = tokio::fs::read_to_string(&index_path).await.expect(format!("could not read table of contents markdown: {:?}", index_path).as_str());
-    let mut markdown = ::markdown::to_mdast(&contents, &::markdown::ParseOptions::default()).expect("could not parse table of contents markdown");
-    markdown::nest_links(&mut markdown, root);
-    let guides = crate::utils::markdown::parse_summary_into_nav_links(&root).expect("could not extract nav links from table of contents");
+    let root = PathBuf::from("docs/guides/");
+    let index_path = PathBuf::from(&config::docs_dir())
+        .join(&root)
+        .join("SUMMARY.md");
+    let contents = tokio::fs::read_to_string(&index_path).await.expect(
+        format!(
+            "could not read table of contents markdown: {:?}",
+            index_path
+        )
+        .as_str(),
+    );
+    let mdast = ::markdown::to_mdast(&contents, &::markdown::ParseOptions::default())
+        .expect("could not parse table of contents markdown");
+    let guides = markdown::parse_summary_into_nav_links(&mdast)
+        .expect("could not extract nav links from table of contents");
 
     render(cluster, &path, guides, "Guides", &Path::new("docs")).await
 }
@@ -205,7 +225,7 @@ async fn render<'a>(
 }
 
 pub fn routes() -> Vec<Route> {
-    routes![doc_handler, blog_handler, search]
+    routes![gitbook_assets, doc_handler, blog_handler, search]
 }
 
 #[cfg(test)]
