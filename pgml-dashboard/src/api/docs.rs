@@ -25,95 +25,11 @@ async fn search(query: &str, index: &State<markdown::SearchIndex>) -> ResponseOk
 }
 
 #[get("/docs/<path..>", rank = 10)]
-async fn doc_handler<'a>(path: PathBuf, cluster: &Cluster) -> Result<ResponseOk, Status> {
-    // Get the document content
-    let summary = Path::new(&config::docs_dir())
-        .join("test.md");
-
-    // Read to string
-    let contents = match tokio::fs::read_to_string(&summary).await {
-        Ok(contents) => contents,
-        Err(_) => return Err(Status::NotFound),
-    };
-
-    // let mut urls = Vec::new();
-    // let mut titles = Vec::new();
-    // let links = Vec::new();
-    {
-        use ::markdown::{to_mdast, ParseOptions};
-
-        let root = to_mdast(&contents, &ParseOptions::default()).unwrap();
-        crate::utils::markdown::get_nav_links(&root);
-
-        // let arena = Arena::new();
-        // let root = parse_document(&arena, &contents, &markdown::options());
-        // let nav_list = root.last_child().unwrap();
-        //
-        // let links = markdown::get_nav_links(&nav_list);
-        // info!("{:?}", links);
-    //
-    //     markdown::iter_nodes(root, &mut |node| {
-    //         match &node.data.borrow().value {
-    //             comrak::nodes::NodeValue::Link(link) => {
-    //                 urls.push(link.url.to_string());
-    //             }
-    //             comrak::nodes::NodeValue::Text(text) => {
-    //                 titles.push(text.to_string());
-    //             }
-    //             _ => {}
-    //         }
-    //
-    //         Ok(true)
-    //     }).unwrap();
-    }
-    //
-    // info!("{:?}", urls);
-    // info!("{:?}", titles);
-
-    let guides = vec![
-        NavLink::new("Setup").children(vec![
-            NavLink::new("Installation").children(vec![
-                NavLink::new("v2").href("/docs/guides/setup/v2/installation"),
-                NavLink::new("Upgrade from v1.0 to v2.0")
-                    .href("/docs/guides/setup/v2/upgrade-from-v1"),
-                NavLink::new("v1").href("/docs/guides/setup/installation"),
-            ]),
-            NavLink::new("Quick Start with Docker")
-                .href("/docs/guides/setup/quick_start_with_docker"),
-            NavLink::new("Distributed Training").href("/docs/guides/setup/distributed_training"),
-            NavLink::new("GPU Support").href("/docs/guides/setup/gpu_support"),
-            NavLink::new("Developer Setup").href("/docs/guides/setup/developers"),
-        ]),
-        NavLink::new("Training").children(vec![
-            NavLink::new("Overview").href("/docs/guides/training/overview"),
-            NavLink::new("Algorithm Selection").href("/docs/guides/training/algorithm_selection"),
-            NavLink::new("Hyperparameter Search")
-                .href("/docs/guides/training/hyperparameter_search"),
-            NavLink::new("Preprocessing Data").href("/docs/guides/training/preprocessing"),
-            NavLink::new("Joint Optimization").href("/docs/guides/training/joint_optimization"),
-        ]),
-        NavLink::new("Predictions").children(vec![
-            NavLink::new("Overview").href("/docs/guides/predictions/overview"),
-            NavLink::new("Deployments").href("/docs/guides/predictions/deployments"),
-            NavLink::new("Batch Predictions").href("/docs/guides/predictions/batch"),
-        ]),
-        NavLink::new("Transformers").children(vec![
-            NavLink::new("Setup").href("/docs/guides/transformers/setup"),
-            NavLink::new("Pre-trained Models").href("/docs/guides/transformers/pre_trained_models"),
-            NavLink::new("Fine Tuning").href("/docs/guides/transformers/fine_tuning"),
-            NavLink::new("Embeddings").href("/docs/guides/transformers/embeddings"),
-        ]),
-        NavLink::new("Vector Operations").children(vec![
-            NavLink::new("Overview").href("/docs/guides/vector_operations/overview")
-        ]),
-        NavLink::new("Dashboard").href("/docs/guides/dashboard/overview"),
-        NavLink::new("Schema").children(vec![
-            NavLink::new("Models").href("/docs/guides/schema/models"),
-            NavLink::new("Snapshots").href("/docs/guides/schema/snapshots"),
-            NavLink::new("Projects").href("/docs/guides/schema/projects"),
-            NavLink::new("Deployments").href("/docs/guides/schema/deployments"),
-        ]),
-    ];
+async fn doc_handler(path: PathBuf, cluster: &Cluster) -> Result<ResponseOk, Status> {
+    let index_path = Path::new(&config::docs_dir()).join("docs/guides/SUMMARY.md");
+    let contents = tokio::fs::read_to_string(&index_path).await.expect(format!("could not read table of contents markdown: {:?}", index_path).as_str());
+    let root = ::markdown::to_mdast(&contents, &::markdown::ParseOptions::default()).expect("could not parse table of contents markdown");
+    let guides = crate::utils::markdown::parse_summary_into_nav_links(&root).expect("could not extract nav links from table of contents");
 
     render(cluster, &path, guides, "Guides", &Path::new("docs")).await
 }
@@ -190,10 +106,11 @@ async fn render<'a>(
     let url = path.clone();
 
     // Get the document content
-    let path = Path::new(&config::content_dir())
+    let path = Path::new(&config::docs_dir())
         .join(folder)
         .join(&(path.to_str().unwrap().to_string() + ".md"));
 
+    info!("path: {:?}", path);
     // Read to string
     let contents = match tokio::fs::read_to_string(&path).await {
         Ok(contents) => contents,

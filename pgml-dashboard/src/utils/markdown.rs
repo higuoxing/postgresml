@@ -5,6 +5,8 @@ use comrak::{
     nodes::{Ast, AstNode, NodeValue},
     parse_document, Arena, ComrakExtensionOptions, ComrakOptions, ComrakRenderOptions,
 };
+
+use anyhow::Result;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -21,6 +23,7 @@ use tantivy::{Index, IndexReader, SnippetGenerator};
 
 use std::fmt;
 use std::sync::atomic::AtomicUsize;
+use crate::templates::docs::NavLink;
 
 pub struct MarkdownHeadings {
     header_counter: AtomicUsize,
@@ -491,7 +494,7 @@ pub fn options() -> ComrakOptions {
 }
 
 /// Iterate through the document tree and call function F on all nodes.
-pub fn iter_nodes<'a, F>(node: &'a AstNode<'a>, f: &mut F) -> anyhow::Result<()>
+fn iter_nodes<'a, F>(node: &'a AstNode<'a>, f: &mut F) -> Result<()>
 where
     F: FnMut(&'a AstNode<'a>) -> anyhow::Result<bool>,
 {
@@ -506,104 +509,59 @@ where
     Ok(())
 }
 
-// Node {
-//   data: RefCell {
-//     value: Ast {
-//       value: Item(NodeList {
-//         list_type: Bullet, marker_offset: 0, padding: 2, start: 1, delimiter: Period, bullet_char: 42, tight: false
-//       }),
-//       start_line: 60,
-//       content: "",
-//       open: false, last_line_blank: false, table_visited: false
-//     }
-//   },
-//   children: [
-//     Node { data: RefCell { value: Ast { value: Paragraph, start_line: 60, content: "[Monitoring](monitoring.md)\n", open: false, last_line_blank: false, table_visited: false } },
-//      children: [
-//        Node { data: RefCell { value: Ast { value: Link(NodeLink { url: "monitoring.md", title: "" }), start_line: 0, content: "", open: false, last_line_blank: false, table_visited: false } },
-//        children: [
-//         Node { data: RefCell { value: Ast { value: Text("Monitoring"), start_line: 0, content: "", open: false, last_line_blank: false, table_visited: false } }, children: [] }
-//        ] }
-//      ] }
-// ] }
-
-pub fn get_sub_links(list: &markdown::mdast::List) -> anyhow::Result<Vec<crate::docs::NavLink>> {
-    println!("getting: {:?}", list);
-    let children = list.children().unwrap();
-    for list_item in children.iter() {
-        match list_item
-    }
+pub fn get_sub_links(list: &markdown::mdast::List) -> Result<Vec<NavLink>> {
     let mut links = Vec::new();
+    for node in list.children.iter() {
+        match node {
+            markdown::mdast::Node::ListItem(list_item) => {
+                for node in list_item.children.iter() {
+                    match node {
+                        markdown::mdast::Node::Paragraph(paragraph) => {
+                            for node in paragraph.children.iter() {
+                                match node {
+                                    markdown::mdast::Node::Link(link) => {
+                                        for node in link.children.iter() {
+                                            match node {
+                                                markdown::mdast::Node::Text(text) => {
+                                                    let url = Path::new(&link.url).with_extension("");
+                                                    let url = Path::new("/docs/guides").join(url).into_os_string().into_string().unwrap();
+                                                    let parent = NavLink::new(text.value.as_str())
+                                                        .href(&url);
+                                                    links.push(parent)
+                                                }
+                                                _ => error!("unhandled link child: {:?}", node)
+                                            }
+                                        }
+                                    }
+                                    _ => error!("unhandled paragraph child: {:?}", node)
+                                }
+                            }
+                        }
+                        markdown::mdast::Node::List(list) => {
+                            let mut link = links.pop().unwrap();
+                            link.children = get_sub_links(list).unwrap();
+                            links.push(link);
+                        }
+                        _ => error!("unhandled list_item child: {:?}", node)
+                    }
+                }
+            }
+            _ => error!("unhandled list child: {:?}", node)
+        }
+    }
     Ok(links)
 }
 
-pub fn get_nav_links(node: &markdown::mdast::Node) -> anyhow::Result<Vec<crate::docs::NavLink>> {
-    let children = node.children().unwrap();
-    for node in children.iter() {
+pub fn parse_summary_into_nav_links(root: &markdown::mdast::Node) -> Result<Vec<NavLink>> {
+    for node in root.children().unwrap().iter() {
         match node {
-            // markdown::mdast::Node::Item(item) => {
-            //     println!("item: {:?}", item);
-            // }
             markdown::mdast::Node::List(list) => {
-                let sub_links = get_sub_links(list);
-                println!("sub_links: {:?}", sub_links)
+                return get_sub_links(list);
             }
-            node => {
-                println!("node: {:?}", node);
-            },
+            _ => { /* irrelevant */ },
         }
     }
-    // let title = &children[0];
-    // let list = mdast.children
-    // println!("{:?}", title);
-
-    let mut links = Vec::new();
-    // match node.first_child().unwrap().data.borrow().value {
-    //     NodeValue::List(ref list) => {
-    //         info!("list: {:?}", list);
-    //         // for child in list.children() {
-    //         //     info!("got child")
-    //         // }
-    //     }
-    // }
-    // let item = list.first_child().ok_or(anyhow::anyhow!("list has no child"))?;
-    // // info!("node: {:?}  children: {}", node.data.borrow().value, node.children().count());
-    // for child in node.children() {
-    //
-    //     match node.data.borrow().value {
-    //         &NodeValue::List(ref list) => {
-    //             info!("list: {:?}", list);
-    //         }
-    //         &NodeValue::Item(ref item) => {
-    //             info!("item: {:?}", item);
-    //         }
-    //         _ => (),
-    //     }
-    //     // info!("{:?}", child);
-    //     // let links = get_nav_links(child);
-    // }
-
-    // iter_nodes(root, &mut |node| {
-    //     match &node.data.borrow().value {
-    //         &NodeValue::Paragraph(ref paragraph) => {
-    //             let child = node
-    //                 .first_child()
-    //                 .ok_or(anyhow::anyhow!("paragraph has no child"))?;
-    //             match &sibling.data.borrow().value {
-    //                 &NodeValue::Text(ref text) => {
-    //                     links.push(crate::docs::NavLink::new(text, header_counter - 1));
-    //                     return Ok(false);
-    //                 }
-    //                 _ => (),
-    //             };
-    //         }
-    //         _ => (),
-    //     };
-    //
-    //     Ok(true)
-    // })?;
-
-    Ok(links)
+    return Ok(vec![]);
 }
 
 
