@@ -26,9 +26,11 @@ async fn search(query: &str, index: &State<markdown::SearchIndex>) -> ResponseOk
 
 #[get("/docs/<path..>", rank = 10)]
 async fn doc_handler(path: PathBuf, cluster: &Cluster) -> Result<ResponseOk, Status> {
-    let index_path = Path::new(&config::docs_dir()).join("docs/guides/SUMMARY.md");
+    let root = Path::new(&config::docs_dir()).join("/docs/guides/");
+    let index_path = root.join("SUMMARY.md");
     let contents = tokio::fs::read_to_string(&index_path).await.expect(format!("could not read table of contents markdown: {:?}", index_path).as_str());
-    let root = ::markdown::to_mdast(&contents, &::markdown::ParseOptions::default()).expect("could not parse table of contents markdown");
+    let mut markdown = ::markdown::to_mdast(&contents, &::markdown::ParseOptions::default()).expect("could not parse table of contents markdown");
+    markdown::nest_links(&mut markdown, root);
     let guides = crate::utils::markdown::parse_summary_into_nav_links(&root).expect("could not extract nav links from table of contents");
 
     render(cluster, &path, guides, "Guides", &Path::new("docs")).await

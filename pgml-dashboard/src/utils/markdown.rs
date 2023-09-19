@@ -509,6 +509,36 @@ where
     Ok(())
 }
 
+pub fn iter_mut_all<F>(node: &mut markdown::mdast::Node, f: &mut F) -> Result<()>
+where
+    F: FnMut(&mut markdown::mdast::Node) -> Result<()>
+{
+    let _ = f(node);
+    match node.children_mut() {
+        Some(children) => {
+            for child in children {
+                let _ = iter_mut_all(child, f);
+            }
+        }
+        _ => ()
+    }
+
+    Ok(())
+}
+
+pub fn nest_links(node: &mut markdown::mdast::Node, path: &PathBuf) {
+    let _ = iter_mut_all(node, &mut |node| {
+        match node {
+            markdown::mdast::Node::Link(ref mut link) => {
+                link.url = format!("{}{}", path.join(link.url);
+            },
+            _ => ()
+        };
+
+        Ok(())
+    });
+}
+
 pub fn get_sub_links(list: &markdown::mdast::List) -> Result<Vec<NavLink>> {
     let mut links = Vec::new();
     for node in list.children.iter() {
@@ -563,7 +593,6 @@ pub fn parse_summary_into_nav_links(root: &markdown::mdast::Node) -> Result<Vec<
     }
     return Ok(vec![]);
 }
-
 
 
 /// Get the title of the article.
