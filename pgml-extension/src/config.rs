@@ -2,6 +2,9 @@ use lazy_static::lazy_static;
 use pgrx::{GucContext, GucFlags, GucRegistry, GucSetting};
 use std::ffi::CStr;
 
+#[cfg(any(test, feature = "pg_test"))]
+use pgrx::{pg_schema, pg_test};
+
 lazy_static! {
     pub static ref PGML_VENV: (&'static str, GucSetting<Option<&'static CStr>>) =
         ("pgml.venv", GucSetting::<Option<&'static CStr>>::new(None));
@@ -58,4 +61,18 @@ pub fn set_config(name: &str, value: &str) -> Result<(), pgrx::spi::Error> {
     // especially since this is just for testing
     let query = format!("SELECT set_config('{name}', '{value}', false);");
     pgrx::Spi::run(&query)
+}
+
+#[cfg(any(test, feature = "pg_test"))]
+#[pg_schema]
+mod tests {
+    use super::*;
+
+    #[pg_test]
+    fn read_pgml_huggingface_whitelist() {
+        let name = "pgml.huggingface_whitelist";
+        let value = "meta-llama/Llama-2-7b";
+        set_config(name, value).unwrap();
+        assert_eq!(PGML_HF_WHITELIST.1.get().unwrap().to_string_lossy(), value);
+    }
 }
