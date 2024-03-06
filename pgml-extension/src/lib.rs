@@ -4,6 +4,9 @@ extern crate openblas_src;
 extern crate serde;
 extern crate signal_hook;
 
+use std::{env, ffi::OsStr, os::unix::prelude::OsStrExt};
+
+use config::PGML_OMP_NUM_THREADS;
 use pgrx::*;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -21,10 +24,18 @@ pg_module_magic!();
 
 extension_sql_file!("../sql/schema.sql", name = "schema");
 
+fn setup_environment_variables() {
+    match PGML_OMP_NUM_THREADS.1.get() {
+        None => return,
+        Some(num_threads) => env::set_var("OMP_NUM_THREADS", OsStr::from_bytes(num_threads.to_bytes())),
+    }
+}
+
 #[cfg(not(feature = "use_as_lib"))]
 #[pg_guard]
 pub extern "C" fn _PG_init() {
     config::initialize_server_params();
+    setup_environment_variables();
     bindings::python::activate().expect("Error setting python venv");
     orm::project::init();
 }
@@ -54,7 +65,7 @@ pub mod pg_test {
 
     pub fn postgresql_conf_options() -> Vec<&'static str> {
         // return any postgresql.conf settings that are required for your tests
-        let mut options = vec!["shared_preload_libraries = 'pgml'"];
+        let mut options = vec!["shared_preload_libraries = 'pgml'", "pgml.omp_num_threads = '1'"];
         if let Some(venv) = option_env!("PGML_VENV") {
             let option = format!("pgml.venv = '{venv}'");
             options.push(Box::leak(option.into_boxed_str()));

@@ -18,6 +18,8 @@ lazy_static! {
         "pgml.huggingface_trust_remote_code_whitelist",
         GucSetting::<Option<&'static CStr>>::new(None),
     );
+    pub static ref PGML_OMP_NUM_THREADS: (&'static str, GucSetting<Option<&'static CStr>>) =
+        ("pgml.omp_num_threads", GucSetting::<Option<&'static CStr>>::new(None));
 }
 
 pub fn initialize_server_params() {
@@ -50,6 +52,14 @@ pub fn initialize_server_params() {
         "Models allowed to execute remote codes when pgml.hugging_face_trust_remote_code = 'on'",
         "",
         &PGML_HF_TRUST_WHITELIST.1,
+        GucContext::Userset,
+        GucFlags::default(),
+    );
+    GucRegistry::define_string_guc(
+        PGML_OMP_NUM_THREADS.0,
+        "",
+        "",
+        &PGML_OMP_NUM_THREADS.1,
         GucContext::Userset,
         GucFlags::default(),
     );
